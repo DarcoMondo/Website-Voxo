@@ -1,0 +1,14 @@
+{
+  "source": "dist",
+  "minifyHtml": {
+    "collapseWhitespace": false,
+    "removeComments": false
+  },
+  "puppeteerArgs": [
+    "--no-sandbox",
+    "--disable-setuid-sandbox"
+  ],
+  "cacheAjaxRequests": false,
+  "skipThirdPartyRequests": true
+}
+
