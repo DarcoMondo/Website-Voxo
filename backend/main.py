@@ -137,10 +137,15 @@ def chunk_text(text: str, max_chars: int):
     return chunks
 
 
-def parse_supadata_response(result) -> str:
-    """Parse response from Supadata.ai API"""
+def parse_supadata_response(result) -> tuple:
+    """Parse response from Supadata.ai API, returns (transcript_text, language)"""
+    language = "en"  # Default to English
+    
     # Extract transcript text from response
     if isinstance(result, dict):
+        # Extract language from response
+        language = result.get("lang", "en")
+        
         # Format: {'lang': 'en', 'availableLangs': [...], 'content': [{'lang': 'en', 'text': '...'}, ...]}
         if "content" in result and isinstance(result["content"], list):
             texts = []
@@ -149,8 +154,8 @@ def parse_supadata_response(result) -> str:
                     texts.append(item["text"])
             if texts:
                 transcript = " ".join(texts)
-                print(f"Transcript retrieved from content array: {len(transcript)} characters")
-                return transcript
+                print(f"Transcript retrieved from content array: {len(transcript)} characters, language: {language}")
+                return transcript, language
         
         # Try other possible response formats
         transcript = (
@@ -167,8 +172,8 @@ def parse_supadata_response(result) -> str:
             if isinstance(transcript, list):
                 texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in transcript]
                 transcript = " ".join(texts)
-            print(f"Transcript retrieved: {len(transcript)} characters")
-            return transcript
+            print(f"Transcript retrieved: {len(transcript)} characters, language: {language}")
+            return transcript, language
     
     # If response is a list
     if isinstance(result, list) and len(result) > 0:
@@ -182,13 +187,13 @@ def parse_supadata_response(result) -> str:
                 texts.append(item)
         if texts:
             transcript = " ".join(texts)
-            print(f"Transcript retrieved: {len(transcript)} characters")
-            return transcript
+            print(f"Transcript retrieved: {len(transcript)} characters, language: {language}")
+            return transcript, language
     
     # If response is a string
     if isinstance(result, str):
-        print(f"Transcript retrieved: {len(result)} characters")
-        return result
+        print(f"Transcript retrieved: {len(result)} characters, language: {language}")
+        return result, language
     
     raise HTTPException(status_code=500, detail=f"Unexpected response format from Supadata.ai: {str(result)[:500]}")
 
@@ -196,8 +201,8 @@ def parse_supadata_response(result) -> str:
 # --------------------
 # TRANSCRIPT (SUPADATA.AI)
 # --------------------
-def get_transcript(url: str) -> str:
-    """Get transcript using Supadata.ai API"""
+def get_transcript(url: str) -> tuple:
+    """Get transcript using Supadata.ai API, returns (transcript_text, language)"""
     if not SUPADATA_API_KEY:
         raise HTTPException(status_code=500, detail="SUPADATA_API_KEY not configured")
     
@@ -228,7 +233,8 @@ def get_transcript(url: str) -> str:
             if response.status_code == 200:
                 result = response.json()
                 print(f"Success with GET! Response type: {type(result)}")
-                return parse_supadata_response(result)
+                transcript, language = parse_supadata_response(result)
+                return transcript, language
             elif response.status_code == 401:
                 last_error = f"401 Unauthorized - {response.text[:200]}"
             else:
@@ -257,7 +263,8 @@ def get_transcript(url: str) -> str:
                 if response.status_code == 200:
                     result = response.json()
                     print(f"Success with POST! Response type: {type(result)}")
-                    return parse_supadata_response(result)
+                    transcript, language = parse_supadata_response(result)
+                    return transcript, language
                 elif response.status_code == 401:
                     last_error = f"401 Unauthorized - {response.text[:200]}"
                     break
@@ -289,8 +296,8 @@ def get_transcript(url: str) -> str:
 # --------------------
 # SUMMARY (GEMINI)
 # --------------------
-def summarize_text(transcript: str) -> str:
-    """Summarize text using Gemini"""
+def summarize_text(transcript: str, language: str = "en") -> str:
+    """Summarize text using Gemini, maintaining the original language"""
     if not gemini_model:
         raise HTTPException(status_code=500, detail="Gemini model not available. Please check GEMINI_API_KEY.")
     
@@ -298,23 +305,51 @@ def summarize_text(transcript: str) -> str:
         chunks = chunk_text(transcript, 6000)
         partials = []
 
+        # Language names for prompt
+        language_names = {
+            "it": "italiano",
+            "en": "english",
+            "es": "español",
+            "fr": "français",
+            "de": "deutsch",
+            "pt": "português",
+            "nl": "nederlands",
+            "pl": "polski",
+            "ru": "русский",
+            "ja": "日本語",
+            "ko": "한국어",
+            "zh": "中文",
+            "hi": "हिंदी",
+            "ar": "العربية",
+            "tr": "türkçe",
+        }
+        lang_name = language_names.get(language.split("-")[0], "the same language")
+        
         for chunk in chunks:
-            prompt = f"""
-Summarize the following text.
-- Keep the SAME language
+            prompt = f"""Please summarize the following text. IMPORTANT: You MUST write the summary in {lang_name} (the same language as the original text). Do NOT translate to English. Keep the original language.
+
+Requirements:
+- Write the summary in {lang_name}
 - Use clear paragraphs
 - Be concise
+- Maintain the same language as the original text
 
-Text:
+Text to summarize:
 {chunk}
-"""
+
+Summary (in {lang_name}):"""
             resp = gemini_model.generate_content(prompt)
             partials.append(resp.text)
 
         if len(partials) == 1:
             return partials[0]
 
-        final_prompt = "Combine and refine these summaries:\n\n" + "\n\n".join(partials)
+        final_prompt = f"""Combine and refine these summaries. IMPORTANT: Keep the summary in {lang_name} (the same language). Do NOT translate to English.
+
+Summaries to combine:
+{chr(10).join(partials)}
+
+Combined summary (in {lang_name}):"""
         final = gemini_model.generate_content(final_prompt)
         return final.text
     except Exception as e:
@@ -324,16 +359,62 @@ Text:
 # --------------------
 # TTS (AWS POLLY)
 # --------------------
-def text_to_speech(text: str) -> str:
+def get_polly_voice(language: str) -> str:
+    """Map language code to AWS Polly voice ID"""
+    # Map common language codes to AWS Polly voice IDs (Neural voices preferred)
+    voice_map = {
+        "en": "Joanna",      # English (US) - Female
+        "it": "Bianca",      # Italian - Female
+        "es": "Lucia",       # Spanish (ES) - Female
+        "fr": "Lea",         # French - Female
+        "de": "Vicki",       # German - Female
+        "pt": "Camila",      # Portuguese (BR) - Female
+        "pt-BR": "Camila",   # Portuguese (BR) - Female
+        "pt-PT": "Ines",     # Portuguese (PT) - Female
+        "nl": "Laura",       # Dutch - Female
+        "pl": "Ola",         # Polish - Female
+        "ru": "Tatyana",     # Russian - Female
+        "ja": "Takumi",      # Japanese - Male
+        "ko": "Seoyeon",     # Korean - Female
+        "zh": "Zhiyu",       # Chinese (Mandarin) - Female
+        "zh-CN": "Zhiyu",    # Chinese (Mandarin) - Female
+        "zh-TW": "Zhiyu",    # Chinese (Mandarin) - Female
+        "hi": "Aditi",       # Hindi - Female
+        "ar": "Zeina",       # Arabic - Female
+        "tr": "Filiz",       # Turkish - Female
+        "sv": "Astrid",      # Swedish - Female
+        "da": "Naja",        # Danish - Female
+        "no": "Ida",         # Norwegian - Female
+        "fi": "Suvi",        # Finnish - Female
+    }
+    
+    # Try exact match first
+    if language in voice_map:
+        return voice_map[language]
+    
+    # Try language code without region (e.g., "pt-BR" -> "pt")
+    lang_base = language.split("-")[0]
+    if lang_base in voice_map:
+        return voice_map[lang_base]
+    
+    # Default to English
+    print(f"Language '{language}' not found in voice map, using default 'Joanna'")
+    return "Joanna"
+
+
+def text_to_speech(text: str, language: str = "en") -> str:
     if not polly:
         raise HTTPException(status_code=500, detail="AWS Polly not configured. Please check AWS credentials.")
+    
+    voice_id = get_polly_voice(language)
+    print(f"Using AWS Polly voice: {voice_id} for language: {language}")
     
     audio = b""
     for chunk in chunk_text(text, 2500):
         res = polly.synthesize_speech(
             Text=chunk,
             OutputFormat="mp3",
-            VoiceId="Joanna",
+            VoiceId=voice_id,
             Engine="neural",
         )
         audio += res["AudioStream"].read()
@@ -357,9 +438,9 @@ async def health():
 @app.post("/api/summarize", response_model=SummarizeResponse)
 async def summarize(req: SummarizeRequest):
     try:
-        transcript = get_transcript(req.url)
-        summary = summarize_text(transcript)
-        audio = text_to_speech(summary)
+        transcript, language = get_transcript(req.url)
+        summary = summarize_text(transcript, language)
+        audio = text_to_speech(summary, language)
 
         return SummarizeResponse(
             summary=summary,
