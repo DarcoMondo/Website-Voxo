@@ -45,12 +45,13 @@ gemini_model = None
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # Try gemini-2.0-flash first, fallback to gemini-1.5-flash
+    # Names must match current Gemini API model codes (older IDs like gemini-1.5-* /
+    # gemini-pro return 404). See https://ai.google.dev/gemini-api/docs/models
     model_names_to_try = [
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-flash-latest",
     ]
     
     for model_name in model_names_to_try:
