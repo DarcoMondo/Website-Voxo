@@ -15,7 +15,7 @@
 
 Designed for anyone with a long "Watch Later" list and not enough time to sit through it, Voxo makes catching up on video content faster and more flexible.
 
-<div align="center">
+<div align="left">
   <img src="docs/img/voxo-customer-journey12.png" alt="voxo user journey" width="700"/>
 </div>
 
@@ -33,7 +33,7 @@ Designed for anyone with a long "Watch Later" list and not enough time to sit th
 - **[React](https://react.dev/)**: JavaScript library for the user interface
 - **[Vite](https://vitejs.dev/)**: Build tool and development server
 
-<div align="center">
+<div align="left">
   <img src="docs/img/voxo-api-flow.png" alt="voxo api flow" width="700"/>
 </div>
 
@@ -55,12 +55,12 @@ docker compose up --build
 # Backend API: http://localhost:8000
 ```
 
-<div align="center">
+<div align="left">
   <img src="docs/img/voxo-docker.png" alt="voxo docker architecture" width="400"/>
 </div>
 
 ## Result
-<div align="center">
+<div align="left">
 <table>
   <tr>
     <td><img src="docs/img/voxo-result.gif" alt="Voxo usage demo" width="500"/></td>
