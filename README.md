@@ -56,15 +56,14 @@ docker compose up --build
 ```
 
 <div align="center">
-  <img src="docs/img/voxo-docker.png" alt="voxo docker architecture" width="550"/>
+  <img src="docs/img/voxo-docker.png" alt="voxo docker architecture" width="400"/>
 </div>
 
 ## Result
 <div align="center">
 <table>
   <tr>
-    <td><img src="docs/img/voxo-screenshot.png" alt="Voxo interface" width="500"/></td>
-    <td><img src="docs/img/voxo-result.gif" alt="Voxo usage demo" width="250"/></td>
+    <td><img src="docs/img/voxo-result.gif" alt="Voxo usage demo" width="500"/></td>
   </tr>
 </table>
 </div>
